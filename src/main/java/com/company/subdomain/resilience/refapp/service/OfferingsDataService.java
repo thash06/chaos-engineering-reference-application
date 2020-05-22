@@ -1,12 +1,15 @@
 package com.company.subdomain.resilience.refapp.service;
 
-import com.company.subdomain.resilience.refapp.exception.ChaosEngineeringException;
+import com.company.subdomain.resilience.refapp.exception.ChaosEngineeringRuntimeException;
+import com.company.subdomain.resilience.refapp.exception.TemporaryServiceOutageException;
 import com.company.subdomain.resilience.refapp.model.MockDataServiceResponse;
 
 public interface OfferingsDataService {
-    MockDataServiceResponse getMockOfferingsDataFromService(boolean throwException) throws ChaosEngineeringException;
+    MockDataServiceResponse getMockOfferings(Boolean throwException) throws TemporaryServiceOutageException;
 
-    MockDataServiceResponse getMockOfferingsDataFromService(String id, boolean throwException) throws ChaosEngineeringException;
+    MockDataServiceResponse getMockOfferingsDataFromService(boolean throwException) throws ChaosEngineeringRuntimeException;
 
-    MockDataServiceResponse getDegradedMockOfferings(boolean throwException) throws ChaosEngineeringException;
+    MockDataServiceResponse getMockOfferingsDataFromService(String id, boolean throwException) throws ChaosEngineeringRuntimeException;
+
+    MockDataServiceResponse getDegradedMockOfferings(boolean throwException) throws ChaosEngineeringRuntimeException;
 }

@@ -5,25 +5,26 @@ spring:
 server:
   port: 9090
 
-chaos:
-  monkey:
-    watcher:
-      controller: false
-      restController: true
-      service: false
-      repository: false
-    enabled: false
+patterns.config:
+  retry:
+    initialIntervalMillis: 500
+    multiplier: 5
+    maxAttempts: 3
+  timeLimiter:
+    waitTimeDuration: 3000
+  circuitBreaker:
+    failureRateThreshold: 25
+    waitTimeDuration: 25
+    permittedNumberOfCallsInHalfOpenState: 1
+    slidingWindowSize: 4
+  bulkhead:
+    numberOfThreads: 4
+  rateLimiter:
+    limitForPeriod: 4
+    windowInMilliseconds: 10000
+    waitTimeForThread: 0
 
-management:
-  endpoint:
-    chaosmonkey.enabled: true
-    chaosmonkeyjmx.enabled: true
 
-  endpoints:
-    web.exposure.include: '*'
-gremlin.alfi.application:
-  type: Springboot
-  name: Gremlin-ALFI-Provider
 
 
 ########### Resilience4j ###############

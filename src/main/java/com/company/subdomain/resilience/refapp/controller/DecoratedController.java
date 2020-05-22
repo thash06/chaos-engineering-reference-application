@@ -1,7 +1,7 @@
 package com.company.subdomain.resilience.refapp.controller;
 
 import com.company.subdomain.resilience.refapp.decorators.DecoratedSupplier;
-import com.company.subdomain.resilience.refapp.exception.ChaosEngineeringException;
+import com.company.subdomain.resilience.refapp.exception.ChaosEngineeringRuntimeException;
 import com.company.subdomain.resilience.refapp.model.MockDataServiceResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,40 +23,35 @@ public class DecoratedController<T, R> {
 
     }
 
-    @GetMapping("/offerings")
-    public MockDataServiceResponse offerings(@RequestParam Boolean throwException) throws ChaosEngineeringException, ExecutionException, InterruptedException {
+    @GetMapping("/offeringsWithThreadPoolBulkheadAndTimeLimiter")
+    public MockDataServiceResponse offerings(@RequestParam Boolean throwException) throws ChaosEngineeringRuntimeException, ExecutionException, InterruptedException {
         return decoratedSupplier.callThreadPoolBulkheadAndTimeLimiterDecoratedService(throwException);
     }
 
-    @GetMapping("/offeringsWithRetry")
-    public MockDataServiceResponse offeringsWithRetry(@RequestParam Boolean throwException) throws ChaosEngineeringException, ExecutionException, InterruptedException {
-        return decoratedSupplier.callBulkheadAndRetryDecoratedService(throwException);
-    }
-
     @GetMapping("/simpleRetry")
-    public MockDataServiceResponse offeringsWithSimpleRetry(@RequestParam Boolean throwException) throws ChaosEngineeringException, ExecutionException, InterruptedException {
+    public MockDataServiceResponse offeringsWithSimpleRetry(@RequestParam Boolean throwException) throws Throwable {
         return decoratedSupplier.callRetryDecoratedService(throwException);
     }
 
 
     @GetMapping("/simpleCircuitBreaker")
-    public MockDataServiceResponse offeringsWithSimpleCircuitBreaker(@RequestParam Boolean throwException) throws ChaosEngineeringException, ExecutionException, InterruptedException {
+    public MockDataServiceResponse offeringsWithSimpleCircuitBreaker(@RequestParam Boolean throwException) throws ChaosEngineeringRuntimeException, ExecutionException, InterruptedException {
         return decoratedSupplier.callCircuitBreakerDecoratedService(throwException);
     }
 
     @GetMapping("/simpleBulkhead")
-    public MockDataServiceResponse offeringsWithSimpleBulkhead(@RequestParam Boolean throwException)
+    public MockDataServiceResponse offeringsWithSimpleBulkhead(@RequestParam String offerId, @RequestParam Boolean throwException)
             throws Throwable {
         return decoratedSupplier.callBulkheadDecoratedService(throwException);
     }
 
     @GetMapping("/simpleRateLimiter")
-    public MockDataServiceResponse offeringsWithSimpleRateLimiter(@RequestParam Boolean throwException) throws ChaosEngineeringException, ExecutionException, InterruptedException {
+    public MockDataServiceResponse offeringsWithSimpleRateLimiter(@RequestParam Boolean throwException) throws ChaosEngineeringRuntimeException, ExecutionException, InterruptedException {
         return decoratedSupplier.callRateLimiterDecoratedService(throwException);
     }
 
     @GetMapping("/simpleTimeLimiter")
-    public MockDataServiceResponse offeringsWithSimpleTimeLimiter(@RequestParam Boolean throwException) throws ChaosEngineeringException, ExecutionException, InterruptedException {
+    public MockDataServiceResponse offeringsWithSimpleTimeLimiter(@RequestParam Boolean throwException) throws ChaosEngineeringRuntimeException, ExecutionException, InterruptedException {
         return decoratedSupplier.callTimeLimiterDecoratedService(throwException);
     }
 
@@ -64,11 +59,11 @@ public class DecoratedController<T, R> {
      * @return
      * @throws RuntimeException
      */
-    @GetMapping("/offeringsById")
-    public MockDataServiceResponse offeringsById(@RequestParam String offerId, @RequestParam Boolean throwException) throws ChaosEngineeringException {
+    @GetMapping("/simpleSemaphoreBulkhead")
+    public MockDataServiceResponse offeringsById(@RequestParam String offerId, @RequestParam Boolean throwException) throws ChaosEngineeringRuntimeException {
         try {
             return decoratedSupplier.callSemaphoreBulkheadDecoratedService(offerId, throwException);
-        } catch (ChaosEngineeringException e) {
+        } catch (ChaosEngineeringRuntimeException e) {
             LOGGER.error("Caught error in controller {}", e.getMessage());
             throw e;
         }
@@ -80,11 +75,11 @@ public class DecoratedController<T, R> {
      * @throws RuntimeException
      */
     @GetMapping("/degradingService")
-    public MockDataServiceResponse degradingOfferings(@RequestParam Boolean throwException) throws ChaosEngineeringException,
+    public MockDataServiceResponse degradingOfferings(@RequestParam Boolean throwException) throws ChaosEngineeringRuntimeException,
             InterruptedException, ExecutionException {
         try {
             return decoratedSupplier.callDegradingOfferingsUsingSemaphoreBulkheadDecoratedService(throwException);
-        } catch (ChaosEngineeringException e) {
+        } catch (ChaosEngineeringRuntimeException e) {
             LOGGER.error("Caught error in controller {}", e.getMessage());
             throw e;
         }

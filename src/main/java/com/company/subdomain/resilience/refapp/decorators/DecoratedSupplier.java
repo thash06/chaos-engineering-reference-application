@@ -1,6 +1,7 @@
 package com.company.subdomain.resilience.refapp.decorators;
 
-import com.company.subdomain.resilience.refapp.exception.ChaosEngineeringException;
+import com.company.subdomain.resilience.refapp.exception.ChaosEngineeringRuntimeException;
+import com.company.subdomain.resilience.refapp.exception.TemporaryServiceOutageException;
 import com.company.subdomain.resilience.refapp.model.MockDataServiceResponse;
 import com.company.subdomain.resilience.refapp.service.OfferingsDataService;
 import io.github.resilience4j.bulkhead.Bulkhead;
@@ -18,6 +19,7 @@ import io.vavr.CheckedFunction1;
 import io.vavr.CheckedFunction2;
 import io.vavr.Function0;
 import io.vavr.control.Try;
+import lombok.Lombok;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -33,29 +35,40 @@ public class DecoratedSupplier {
 
 
     private final OfferingsDataService offeringsDataService;
-    private final DecoratorFactory decoratorFactory;
+    private final PatternsFactory patternsFactory;
 
     private AtomicInteger atomicInteger = new AtomicInteger(0);
 
-    public DecoratedSupplier(OfferingsDataService offeringsDataService, DecoratorFactory decoratorFactory) {
+    public DecoratedSupplier(OfferingsDataService offeringsDataService, PatternsFactory patternsFactory) {
         this.offeringsDataService = offeringsDataService;
-        this.decoratorFactory = decoratorFactory;
+        this.patternsFactory = patternsFactory;
     }
 
-    public MockDataServiceResponse callRetryDecoratedService(boolean throwException) throws ExecutionException, InterruptedException, ChaosEngineeringException {
-        handlePublishedEvents(decoratorFactory.retry);
-        Supplier<MockDataServiceResponse> mockDataServiceResponseSupplier = (() ->
-                offeringsDataService.getMockOfferingsDataFromService(throwException));
-        return Retry.decorateSupplier(decoratorFactory.retry, mockDataServiceResponseSupplier)
+    public MockDataServiceResponse callRetryDecoratedService(boolean throwException) {
+        handlePublishedEvents(patternsFactory.retry);
+        Supplier<MockDataServiceResponse> mockDataServiceResponseSupplier = () -> getMockOfferings(throwException);
+        return Retry.decorateSupplier(patternsFactory.retry, mockDataServiceResponseSupplier)
                 .get();
     }
 
-    public MockDataServiceResponse callCircuitBreakerDecoratedService(boolean throwException) throws ExecutionException, InterruptedException, ChaosEngineeringException {
-        handlePublishedEvents(decoratorFactory.circuitBreaker);
+    private MockDataServiceResponse getMockOfferings(boolean throwException) {
+        return Try.of(() -> offeringsDataService.getMockOfferings(throwException))
+                .recover(throwable -> {
+                    if (throwable instanceof TemporaryServiceOutageException) {
+                        throw new ChaosEngineeringRuntimeException(throwable.getMessage());
+                    } else {
+                        throw Lombok.sneakyThrow(throwable);
+                    }
+                })
+                .get();
+    }
+
+    public MockDataServiceResponse callCircuitBreakerDecoratedService(boolean throwException) throws ExecutionException, InterruptedException, ChaosEngineeringRuntimeException {
+        handlePublishedEvents(patternsFactory.circuitBreaker);
         Supplier<MockDataServiceResponse> mockDataServiceResponseSupplier = (() ->
                 offeringsDataService.getMockOfferingsDataFromService(throwException));
         Supplier<MockDataServiceResponse> decoratedSupplier = Decorators.ofSupplier(mockDataServiceResponseSupplier)
-                .withCircuitBreaker(decoratorFactory.circuitBreaker)
+                .withCircuitBreaker(patternsFactory.circuitBreaker)
                 .withFallback(Collections.singletonList(CallNotPermittedException.class),
                         (e) -> fallbackResponse(String.format("CallNotPermittedException thrown: {%s}", e.getMessage())))
                 .decorate();
@@ -64,20 +77,20 @@ public class DecoratedSupplier {
                 .getOrElseGet(throwable -> fallbackResponse(String.format(throwable.getMessage())));
     }
 
-    public MockDataServiceResponse callSimpleCircuitBreakerDecoratedService(boolean throwException) throws ExecutionException, InterruptedException, ChaosEngineeringException {
-        handlePublishedEvents(decoratorFactory.circuitBreaker);
+    public MockDataServiceResponse callSimpleCircuitBreakerDecoratedService(boolean throwException) throws ExecutionException, InterruptedException, ChaosEngineeringRuntimeException {
+        handlePublishedEvents(patternsFactory.circuitBreaker);
         Supplier<MockDataServiceResponse> mockDataServiceResponseSupplier = (() ->
                 offeringsDataService.getMockOfferingsDataFromService(throwException));
-        return CircuitBreaker.decorateSupplier(decoratorFactory.circuitBreaker, mockDataServiceResponseSupplier)
+        return CircuitBreaker.decorateSupplier(patternsFactory.circuitBreaker, mockDataServiceResponseSupplier)
                 .get();
     }
 
-    public MockDataServiceResponse callRateLimiterDecoratedService(boolean throwException) throws ExecutionException, InterruptedException, ChaosEngineeringException {
-        handlePublishedEvents(decoratorFactory.rateLimiter);
+    public MockDataServiceResponse callRateLimiterDecoratedService(boolean throwException) throws ExecutionException, InterruptedException, ChaosEngineeringRuntimeException {
+        handlePublishedEvents(patternsFactory.rateLimiter);
         Supplier<MockDataServiceResponse> mockDataServiceResponseSupplier = (() ->
                 offeringsDataService.getMockOfferingsDataFromService(throwException));
         Supplier<MockDataServiceResponse> decoratedSupplier = Decorators.ofSupplier(mockDataServiceResponseSupplier)
-                .withRateLimiter(decoratorFactory.rateLimiter)
+                .withRateLimiter(patternsFactory.rateLimiter)
                 .withFallback(Collections.singletonList(RequestNotPermitted.class),
                         (e) -> fallbackResponse(String.format("RequestNotPermitted thrown: {%s}", e.getMessage())))
                 .decorate();
@@ -86,15 +99,15 @@ public class DecoratedSupplier {
                 .getOrElseGet(throwable -> fallbackResponse(String.format(throwable.getMessage())));
     }
 
-    public MockDataServiceResponse callTimeLimiterDecoratedService(boolean throwException) throws ExecutionException, InterruptedException, ChaosEngineeringException {
-        handlePublishedEvents(decoratorFactory.timeLimiter);
+    public MockDataServiceResponse callTimeLimiterDecoratedService(boolean throwException) throws ExecutionException, InterruptedException, ChaosEngineeringRuntimeException {
+        handlePublishedEvents(patternsFactory.timeLimiter);
         Supplier<MockDataServiceResponse> mockDataServiceResponseSupplier = (() ->
                 offeringsDataService.getDegradedMockOfferings(throwException));
         Supplier<CompletableFuture<MockDataServiceResponse>> futureSupplier =
                 () -> CompletableFuture.supplyAsync(mockDataServiceResponseSupplier);
 
         Callable<MockDataServiceResponse> decorateFutureSupplier =
-                TimeLimiter.decorateFutureSupplier(decoratorFactory.timeLimiter, futureSupplier);
+                TimeLimiter.decorateFutureSupplier(patternsFactory.timeLimiter, futureSupplier);
 
 
         //https://github.com/resilience4j/resilience4j/issues/928
@@ -109,11 +122,11 @@ public class DecoratedSupplier {
 
     public MockDataServiceResponse callBulkheadDecoratedService(boolean throwException) throws Throwable {
         LOGGER.info(" {} callBulkheadDecoratedService ", Thread.currentThread().getName());
-        handlePublishedEvents(decoratorFactory.bulkhead);
+        handlePublishedEvents(patternsFactory.bulkhead);
         Supplier<MockDataServiceResponse> mockDataServiceResponseSupplier = (() ->
                 offeringsDataService.getMockOfferingsDataFromService(throwException));
         Supplier<MockDataServiceResponse> decoratedSupplier = Decorators.ofSupplier(mockDataServiceResponseSupplier)
-                .withBulkhead(decoratorFactory.bulkhead)
+                .withBulkhead(patternsFactory.bulkhead)
                 .withFallback(Collections.singletonList(BulkheadFullException.class),
                         (e) -> fallbackResponse(String.format("BulkheadFullException thrown: {%s}", e.getMessage())))
                 .decorate();
@@ -121,11 +134,11 @@ public class DecoratedSupplier {
                 .getOrElseGet(throwable -> fallbackResponse(throwable.getMessage()));
     }
 
-    public MockDataServiceResponse callSimpleBulkheadDecoratedService(boolean throwException) throws ExecutionException, InterruptedException, ChaosEngineeringException {
-        handlePublishedEvents(decoratorFactory.bulkhead);
+    public MockDataServiceResponse callSimpleBulkheadDecoratedService(boolean throwException) throws ExecutionException, InterruptedException, ChaosEngineeringRuntimeException {
+        handlePublishedEvents(patternsFactory.bulkhead);
         Supplier<MockDataServiceResponse> mockDataServiceResponseSupplier = (() ->
                 offeringsDataService.getMockOfferingsDataFromService(throwException));
-        return Bulkhead.decorateSupplier(decoratorFactory.bulkhead, mockDataServiceResponseSupplier)
+        return Bulkhead.decorateSupplier(patternsFactory.bulkhead, mockDataServiceResponseSupplier)
                 .get();
     }
 
@@ -134,20 +147,20 @@ public class DecoratedSupplier {
      * @return
      * @throws ExecutionException
      * @throws InterruptedException
-     * @throws ChaosEngineeringException
+     * @throws ChaosEngineeringRuntimeException
      */
     public MockDataServiceResponse callThreadPoolBulkheadAndTimeLimiterDecoratedService(boolean throwException)
-            throws ExecutionException, InterruptedException, ChaosEngineeringException {
-        handlePublishedEvents(decoratorFactory.threadPoolBulkhead);
+            throws ExecutionException, InterruptedException, ChaosEngineeringRuntimeException {
+        handlePublishedEvents(patternsFactory.threadPoolBulkhead);
         CompletableFuture<MockDataServiceResponse> future = Decorators
-                .ofSupplier(() -> offeringsDataService.getMockOfferingsDataFromService(throwException))
-                .withThreadPoolBulkhead(decoratorFactory.threadPoolBulkhead)
-                .withTimeLimiter(decoratorFactory.timeLimiter, Executors.newSingleThreadScheduledExecutor())
+                .ofSupplier(() -> offeringsDataService.getDegradedMockOfferings(throwException))
+                .withThreadPoolBulkhead(patternsFactory.threadPoolBulkhead)
+                .withTimeLimiter(patternsFactory.timeLimiter, Executors.newSingleThreadScheduledExecutor())
                 .withFallback(BulkheadFullException.class, (e) -> fallbackResponse(
                         String.format("Request failed due to bulkheadName {%s} BulkheadFullException", e.getMessage())))
                 .withFallback(TimeoutException.class, (e) -> fallbackResponse(
                         String.format("Request failed due to TimeLimiter {%s} with duration {%s} due to TimeoutException",
-                                decoratorFactory.timeLimiter.getName(), decoratorFactory.timeLimiter.getTimeLimiterConfig().getTimeoutDuration())))
+                                patternsFactory.timeLimiter.getName(), patternsFactory.timeLimiter.getTimeLimiterConfig().getTimeoutDuration())))
                 .get().toCompletableFuture();
         return future.get();
     }
@@ -158,16 +171,16 @@ public class DecoratedSupplier {
      * @return
      * @throws ExecutionException
      * @throws InterruptedException
-     * @throws ChaosEngineeringException
+     * @throws ChaosEngineeringRuntimeException
      */
-    public MockDataServiceResponse callBulkheadAndRetryDecoratedService(boolean throwException) throws ExecutionException, InterruptedException, ChaosEngineeringException {
-        handlePublishedEvents(decoratorFactory.threadPoolBulkhead);
+    public MockDataServiceResponse callBulkheadAndRetryDecoratedService(boolean throwException) throws ExecutionException, InterruptedException, ChaosEngineeringRuntimeException {
+        handlePublishedEvents(patternsFactory.threadPoolBulkhead);
         //Retry retryContext = Retry.of("retry-for-bulkhead", RetryConfig.ofDefaults());
         //handlePublishedEvents(retryContext);
         Supplier<MockDataServiceResponse> serviceAsSupplier = createServiceAsSupplier(throwException);
 
         Supplier<CompletionStage<MockDataServiceResponse>> decorate = Decorators.ofSupplier(serviceAsSupplier)
-                .withThreadPoolBulkhead(decoratorFactory.threadPoolBulkhead)
+                .withThreadPoolBulkhead(patternsFactory.threadPoolBulkhead)
                 //.withRetry(retryContext, Executors.newSingleThreadScheduledExecutor())
                 .decorate();
 
@@ -180,12 +193,12 @@ public class DecoratedSupplier {
     /**
      * @param throwException
      * @return
-     * @throws ChaosEngineeringException
+     * @throws ChaosEngineeringRuntimeException
      */
     public MockDataServiceResponse callDegradingOfferingsUsingSemaphoreBulkheadDecoratedService(boolean throwException)
-            throws ChaosEngineeringException, ExecutionException, InterruptedException {
-        handlePublishedEvents(decoratorFactory.circuitBreaker);
-        handlePublishedEvents(decoratorFactory.bulkhead);
+            throws ChaosEngineeringRuntimeException, ExecutionException, InterruptedException {
+        handlePublishedEvents(patternsFactory.circuitBreaker);
+        handlePublishedEvents(patternsFactory.bulkhead);
         CheckedFunction0<MockDataServiceResponse> checkedFunction0 =
                 CheckedFunction0.of(() -> offeringsDataService.getDegradedMockOfferings(throwException));
         Function0<MockDataServiceResponse> unchecked = checkedFunction0.unchecked();
@@ -193,14 +206,14 @@ public class DecoratedSupplier {
 //                Bulkhead.decorateSupplier(decoratorFactory.bulkhead, unchecked);
         Supplier<CompletableFuture<MockDataServiceResponse>> futureSupplier = () -> CompletableFuture.supplyAsync(unchecked);
         Callable<MockDataServiceResponse> timeLimiterDecoratedSupplier =
-                TimeLimiter.decorateFutureSupplier(decoratorFactory.timeLimiter, futureSupplier);
+                TimeLimiter.decorateFutureSupplier(patternsFactory.timeLimiter, futureSupplier);
 
         CompletableFuture<MockDataServiceResponse> completableFutureCompletionStage =
                 Decorators.ofSupplier(() -> offeringsDataService.getDegradedMockOfferings(throwException))
-                        .withThreadPoolBulkhead(decoratorFactory.threadPoolBulkhead)
-                        .withTimeLimiter(decoratorFactory.timeLimiter, Executors.newSingleThreadScheduledExecutor())
-                        .withCircuitBreaker(decoratorFactory.circuitBreaker)
-                        .withRetry(decoratorFactory.retry, Executors.newSingleThreadScheduledExecutor())
+                        .withThreadPoolBulkhead(patternsFactory.threadPoolBulkhead)
+                        .withTimeLimiter(patternsFactory.timeLimiter, Executors.newSingleThreadScheduledExecutor())
+                        .withCircuitBreaker(patternsFactory.circuitBreaker)
+                        .withRetry(patternsFactory.retry, Executors.newSingleThreadScheduledExecutor())
                         .withFallback(BulkheadFullException.class, (e) -> {
                             LOGGER.info(" Recovering from BulkheadFullException {} ", e.getMessage());
                             return fallbackResponse(
@@ -216,7 +229,7 @@ public class DecoratedSupplier {
                                     LOGGER.info(" Recovering from TimeoutException {} ", e.getMessage());
                                     return fallbackResponse(
                                             String.format("Request failed due to TimeLimiter {%s} with duration {%s} due to TimeoutException",
-                                                    decoratorFactory.timeLimiter.getName(), decoratorFactory.timeLimiter.getTimeLimiterConfig().getTimeoutDuration()));
+                                                    patternsFactory.timeLimiter.getName(), patternsFactory.timeLimiter.getTimeLimiterConfig().getTimeoutDuration()));
                                 }
                         )
                         .get().toCompletableFuture();
@@ -237,8 +250,8 @@ public class DecoratedSupplier {
 //                .get();
     }
 
-    public MockDataServiceResponse callSemaphoreBulkheadDecoratedService(String offerId, boolean throwException) throws ChaosEngineeringException {
-        handlePublishedEvents(decoratorFactory.bulkhead);
+    public MockDataServiceResponse callSemaphoreBulkheadDecoratedService(String offerId, boolean throwException) throws ChaosEngineeringRuntimeException {
+        handlePublishedEvents(patternsFactory.bulkhead);
         if (throwException) {
             return checkedFunctionWithBulkheadDecorator(offerId, throwException);
         } else {
@@ -251,12 +264,12 @@ public class DecoratedSupplier {
         Callable<MockDataServiceResponse> callable = () ->
                 offeringsDataService.getMockOfferingsDataFromService(offerId, throwException);
         Callable<MockDataServiceResponse> decoratedCallable = Decorators.ofCallable(callable)
-                .withBulkhead(decoratorFactory.bulkhead)
+                .withBulkhead(patternsFactory.bulkhead)
                 .decorate();
         return Try.ofCallable(decoratedCallable)
                 .onFailure(throwable -> LOGGER.error(" Failure reason {} ", throwable.getMessage(), throwable))
                 .recoverWith(throwable -> Try.success(fallbackResponse(
-                        String.format("Request with OfferId {%s} failed due to bulkhead {%s} full", offerId, decoratorFactory.bulkhead.getName()))))
+                        String.format("Request with OfferId {%s} failed due to bulkhead {%s} full", offerId, patternsFactory.bulkhead.getName()))))
                 .get();
     }
 
@@ -266,24 +279,24 @@ public class DecoratedSupplier {
         return mockDataServiceResponse;
     }
 
-    private MockDataServiceResponse checkedFunctionWithBulkheadDecorator(String offerId, boolean throwException) throws ChaosEngineeringException {
+    private MockDataServiceResponse checkedFunctionWithBulkheadDecorator(String offerId, boolean throwException) throws ChaosEngineeringRuntimeException {
 //        CheckedFunction1<String, MockDataServiceResponse> checkedFunction1 = createServiceAsCheckedFunction(throwException);
 //        CheckedFunction1<String, MockDataServiceResponse> checkedFunction11 = Bulkhead.decorateCheckedFunction(decoratorFactory.bulkhead, checkedFunction1);
         CheckedFunction0<MockDataServiceResponse> checkedFunction0 = CheckedFunction0.of(() -> offeringsDataService.getMockOfferingsDataFromService(offerId, throwException));
         Function0<MockDataServiceResponse> unchecked = checkedFunction0.unchecked();
-        Supplier<MockDataServiceResponse> mockDataServiceResponseSupplier = Bulkhead.decorateSupplier(decoratorFactory.bulkhead, unchecked);
+        Supplier<MockDataServiceResponse> mockDataServiceResponseSupplier = Bulkhead.decorateSupplier(patternsFactory.bulkhead, unchecked);
         return Try.ofSupplier(mockDataServiceResponseSupplier)
                 .onFailure(throwable -> LOGGER.error(" Failure reason {} ", throwable.getMessage()))
                 .recoverWith(throwable -> Try.success(
                         fallbackResponse(
-                                String.format("Request with OfferId {%s} failed due to bulkhead {%s} full", offerId, decoratorFactory.bulkhead.getName())))
+                                String.format("Request with OfferId {%s} failed due to bulkhead {%s} full", offerId, patternsFactory.bulkhead.getName())))
                 )
                 .get();
     }
 
 
     private Supplier<MockDataServiceResponse> createServiceAsSupplier(boolean throwException) {
-        handlePublishedEvents(decoratorFactory.bulkhead);
+        handlePublishedEvents(patternsFactory.bulkhead);
         Supplier<MockDataServiceResponse> mockDataServiceResponseSupplier = (() -> {
             LOGGER.info("Invoking DecoratedController with Bulkhead count {} ", atomicInteger.incrementAndGet());
             return offeringsDataService.getMockOfferingsDataFromService(throwException);
@@ -291,7 +304,7 @@ public class DecoratedSupplier {
         return mockDataServiceResponseSupplier;
     }
 
-    private CheckedFunction1<String, MockDataServiceResponse> createServiceAsCheckedFunction(boolean throwException) throws ChaosEngineeringException {
+    private CheckedFunction1<String, MockDataServiceResponse> createServiceAsCheckedFunction(boolean throwException) throws ChaosEngineeringRuntimeException {
         CheckedFunction1<String, MockDataServiceResponse> stringMockDataServiceResponseFunction = ((offerId) -> {
             LOGGER.info("Invoking DecoratedController with Bulkhead offerId {} count {} ", offerId, atomicInteger.incrementAndGet());
             return offeringsDataService.getMockOfferingsDataFromService(offerId, throwException);
@@ -300,7 +313,7 @@ public class DecoratedSupplier {
     }
 
     private CheckedFunction2<String, Boolean, MockDataServiceResponse> createServiceAsCheckedFunction(String offerId, boolean throwException)
-            throws ChaosEngineeringException {
+            throws ChaosEngineeringRuntimeException {
         CheckedFunction2<String, Boolean, MockDataServiceResponse> stringMockDataServiceResponseFunction = ((id, exception) -> {
             LOGGER.info("Invoking DecoratedController with Bulkhead offerId {} count {} ", id, atomicInteger.incrementAndGet());
             return offeringsDataService.getMockOfferingsDataFromService(id, exception);

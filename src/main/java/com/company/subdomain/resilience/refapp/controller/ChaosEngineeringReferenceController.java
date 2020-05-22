@@ -1,6 +1,6 @@
 package com.company.subdomain.resilience.refapp.controller;
 
-import com.company.subdomain.resilience.refapp.exception.ChaosEngineeringException;
+import com.company.subdomain.resilience.refapp.exception.ChaosEngineeringRuntimeException;
 import com.company.subdomain.resilience.refapp.model.MockDataServiceResponse;
 import com.company.subdomain.resilience.refapp.service.OfferingsDataService;
 import org.slf4j.Logger;
@@ -29,7 +29,7 @@ public class ChaosEngineeringReferenceController {
      * @throws RuntimeException
      */
     @GetMapping("/vanillaOfferings")
-    public MockDataServiceResponse offerings() throws ChaosEngineeringException {
+    public MockDataServiceResponse offerings() throws ChaosEngineeringRuntimeException {
 
         return offeringsDataService.getMockOfferingsDataFromService(false);
     }
@@ -39,9 +39,9 @@ public class ChaosEngineeringReferenceController {
      * @throws RuntimeException
      */
     @GetMapping("/offerings")
-    public MockDataServiceResponse offerings(@RequestParam Boolean throwException) throws ChaosEngineeringException {
+    public MockDataServiceResponse offerings(@RequestParam Boolean throwException) throws ChaosEngineeringRuntimeException {
         if (throwException) {
-            throw new ChaosEngineeringException("Something went wrong!!");
+            throw new ChaosEngineeringRuntimeException("Something went wrong!!");
         }
         return offeringsDataService.getMockOfferingsDataFromService(throwException);
     }
@@ -51,9 +51,9 @@ public class ChaosEngineeringReferenceController {
      * @throws RuntimeException
      */
     @GetMapping("/offerings/cache")
-    public MockDataServiceResponse offerings(@RequestParam String offerId, @RequestParam Boolean throwException) throws ChaosEngineeringException {
+    public MockDataServiceResponse offerings(@RequestParam String offerId, @RequestParam Boolean throwException) throws ChaosEngineeringRuntimeException {
         if (throwException) {
-            throw new ChaosEngineeringException("Something went wrong!!");
+            throw new ChaosEngineeringRuntimeException("Something went wrong!!");
         }
         return offeringsDataService.getMockOfferingsDataFromService(offerId, throwException);
     }

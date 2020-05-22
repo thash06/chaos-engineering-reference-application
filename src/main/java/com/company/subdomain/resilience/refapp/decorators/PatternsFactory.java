@@ -1,6 +1,8 @@
 package com.company.subdomain.resilience.refapp.decorators;
 
-import com.company.subdomain.resilience.refapp.exception.ChaosEngineeringException;
+import com.company.subdomain.resilience.refapp.exception.ChaosEngineeringRuntimeException;
+import com.company.subdomain.resilience.refapp.exception.TemporaryServiceOutageException;
+import com.company.subdomain.resilience.refapp.util.YMLConfig;
 import io.github.resilience4j.bulkhead.*;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
@@ -11,62 +13,58 @@ import io.github.resilience4j.ratelimiter.RateLimiterConfig;
 import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
 import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryConfig;
+import io.github.resilience4j.retry.RetryRegistry;
 import io.github.resilience4j.timelimiter.TimeLimiter;
 import io.github.resilience4j.timelimiter.TimeLimiterConfig;
 import io.github.resilience4j.timelimiter.TimeLimiterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.HttpServerErrorException;
-import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.io.IOException;
-import java.net.ConnectException;
 import java.time.Duration;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
 @Component
-public class DecoratorFactory {
+public class PatternsFactory {
+    private static Logger LOGGER = LoggerFactory.getLogger(PatternsFactory.class);
+
     public static final String TIME_LIMITER = "time-limiter";
     public static final String SEMAPHORE_BULKHEAD = "semaphore-bulkhead";
     public static final String THREAD_POOL_BULKHEAD = "thread-pool-bulkhead";
     public static final String RETRY_SERVICE = "retry-for-bulkhead";
     public static final String CIRCUIT_BREAKER = "circuit-breaker";
     public static final String RATE_LIMITER = "rate-limiter";
-    private static Logger LOGGER = LoggerFactory.getLogger(DecoratorFactory.class);
-    public final ThreadPoolBulkhead threadPoolBulkhead;
-    public final Bulkhead bulkhead;
-    public final Retry retry;
-    public final TimeLimiter timeLimiter;
-    public final CircuitBreaker circuitBreaker;
-    public final RateLimiter rateLimiter;
 
-    public DecoratorFactory() {
-        int availableProcessors = 4;
-        this.threadPoolBulkhead = createThreadPoolBulkhead(availableProcessors);
-        this.bulkhead = createBulkhead(availableProcessors);
-        RetryConfig retryConfig = createRetryConfig();
-        retry = Retry.of(RETRY_SERVICE, retryConfig);
-        timeLimiter = createTimeLimiter(3000);
-        circuitBreaker = createCircuitBreaker();
-        this.rateLimiter = createRateLimiter(4, 10000, 0);
+    final ThreadPoolBulkhead threadPoolBulkhead;
+    final Bulkhead bulkhead;
+    final Retry retry;
+    final TimeLimiter timeLimiter;
+    final CircuitBreaker circuitBreaker;
+    final RateLimiter rateLimiter;
+
+    public PatternsFactory(YMLConfig ymlConfig) {
+        this.threadPoolBulkhead = createThreadPoolBulkhead(ymlConfig.getNumberOfThreads());
+        this.bulkhead = createBulkhead(ymlConfig.getNumberOfThreads());
+        retry = createRetry(ymlConfig.getInitialIntervalMillis(), ymlConfig.getMultiplier(), ymlConfig.getMaxAttempts());
+        timeLimiter = createTimeLimiter(ymlConfig.getWaitTimeDuration());
+        circuitBreaker = createCircuitBreaker(ymlConfig.getFailureRateThreshold(), ymlConfig.getWaitDurationInOpenState(),
+                ymlConfig.getPermittedNumberOfCallsInHalfOpenState(), ymlConfig.getSlidingWindowSize());
+        this.rateLimiter = createRateLimiter(ymlConfig.getLimitForPeriod(), ymlConfig.getWindowInMilliseconds(),
+                ymlConfig.getWaitTimeForThread());
+
     }
 
-    private RetryConfig createRetryConfig() {
+    private Retry createRetry(int initialIntervalMillis, int multiplier, int maxAttempts) {
         IntervalFunction intervalWithCustomExponentialBackoff = IntervalFunction
-                .ofExponentialBackoff(500l, 5d);
-        return RetryConfig.custom()
+                .ofExponentialBackoff(initialIntervalMillis, multiplier);
+        RetryConfig retryConfig = RetryConfig.custom()
                 .intervalFunction(intervalWithCustomExponentialBackoff)
-                .maxAttempts(5)
-                .retryExceptions(ConnectException.class,
-                        ResourceAccessException.class,
-                        HttpServerErrorException.class,
-                        ExecutionException.class,
-                        WebClientResponseException.class,
-                        ChaosEngineeringException.class)
+                .maxAttempts(maxAttempts)
+                .retryExceptions(TemporaryServiceOutageException.class, ChaosEngineeringRuntimeException.class)
                 .build();
+        RetryRegistry retryRegistry = RetryRegistry.of(retryConfig);
+        return retryRegistry.retry(RETRY_SERVICE);
     }
 
     private TimeLimiter createTimeLimiter(int waitTimeForThread) {
@@ -75,7 +73,7 @@ public class DecoratorFactory {
                 .timeoutDuration(Duration.ofMillis(waitTimeForThread))
                 .build();
         TimeLimiterRegistry timeLimiterRegistry = TimeLimiterRegistry.of(timeLimiterConfig);
-        return timeLimiterRegistry.timeLimiter(TIME_LIMITER, timeLimiterConfig);
+        return timeLimiterRegistry.timeLimiter(TIME_LIMITER);
     }
 
     private ThreadPoolBulkhead createThreadPoolBulkhead(int availableProcessors) {
@@ -90,7 +88,7 @@ public class DecoratorFactory {
         LOGGER.info("ThreadPoolBulkheadConfig created with maxThreadPoolSize {} : coreThreadPoolSize {}",
                 availableProcessors, coreThreadPoolSize);
         ThreadPoolBulkheadRegistry threadPoolBulkheadRegistry = ThreadPoolBulkheadRegistry.of(threadPoolBulkheadConfig);
-        return threadPoolBulkheadRegistry.bulkhead(THREAD_POOL_BULKHEAD, threadPoolBulkheadConfig);
+        return threadPoolBulkheadRegistry.bulkhead(THREAD_POOL_BULKHEAD);
     }
 
     private Bulkhead createBulkhead(int availableProcessors) {
@@ -102,20 +100,21 @@ public class DecoratorFactory {
                 .build();
 
         BulkheadRegistry bulkheadRegistry = BulkheadRegistry.of(bulkheadConfig);
-        return bulkheadRegistry.bulkhead(SEMAPHORE_BULKHEAD, bulkheadConfig);
+        return bulkheadRegistry.bulkhead(SEMAPHORE_BULKHEAD);
     }
 
-    private CircuitBreaker createCircuitBreaker() {
+    private CircuitBreaker createCircuitBreaker(int failureRateThreshold, int waitDurationInOpenState,
+                                                int permittedNumberOfCallsInHalfOpenState, int slidingWindowSize) {
         CircuitBreakerConfig circuitBreakerConfig = CircuitBreakerConfig.custom()
-                .failureRateThreshold(25)
-                .waitDurationInOpenState(Duration.ofMillis(25))
-                .permittedNumberOfCallsInHalfOpenState(1)
-                .slidingWindowSize(4)
-                .recordExceptions(ChaosEngineeringException.class, TimeoutException.class, BulkheadFullException.class)
+                .failureRateThreshold(failureRateThreshold)
+                .waitDurationInOpenState(Duration.ofMillis(waitDurationInOpenState))
+                .permittedNumberOfCallsInHalfOpenState(permittedNumberOfCallsInHalfOpenState)
+                .slidingWindowSize(slidingWindowSize)
+                .recordExceptions(ChaosEngineeringRuntimeException.class, TimeoutException.class, BulkheadFullException.class)
                 .ignoreExceptions(IOException.class)
                 .build();
         CircuitBreakerRegistry circuitBreakerRegistry = CircuitBreakerRegistry.of(circuitBreakerConfig);
-        return circuitBreakerRegistry.circuitBreaker(CIRCUIT_BREAKER, circuitBreakerConfig);
+        return circuitBreakerRegistry.circuitBreaker(CIRCUIT_BREAKER);
     }
 
     private RateLimiter createRateLimiter(int limitForPeriod, int windowInMilliseconds, int waitTimeForThread) {
@@ -126,6 +125,6 @@ public class DecoratorFactory {
 
                 .build();
         RateLimiterRegistry rateLimiterRegistry = RateLimiterRegistry.of(rateLimiterConfig);
-        return rateLimiterRegistry.rateLimiter(RATE_LIMITER, rateLimiterConfig);
+        return rateLimiterRegistry.rateLimiter(RATE_LIMITER);
     }
 }
