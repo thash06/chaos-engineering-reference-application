@@ -63,7 +63,7 @@ class DecoratedControllerTest {
 
     @Test
     @Order(2)
-    void testSimpleRetry() throws Exception {
+    void testSimpleRetry() {
         String url = String.format("http://localhost:%d/decorated-services/simpleRetry", port);
         WebClient webClient = WebClient.create(url);
         Mono<MockDataServiceResponse> one = submitRESTRequest(webClient, true);
@@ -85,7 +85,7 @@ class DecoratedControllerTest {
      */
     @Test
     @Order(3)
-    void testSimpleSemaphoreBulkhead() throws Exception {
+    void testSimpleBulkhead_Semaphore() throws Exception {
         String url = String.format("http://localhost:%d/decorated-services/simpleBulkhead", port);
         WebClient webClient = WebClient.create(url);
         Boolean throwException = Boolean.FALSE;
@@ -149,8 +149,8 @@ class DecoratedControllerTest {
         Mono<MockDataServiceResponse> two = submitRESTRequest(webClient, 1011, !throwException);
         Mono<MockDataServiceResponse> three = submitRESTRequest(webClient, 1012, !throwException);
         Mono<MockDataServiceResponse> four = submitRESTRequest(webClient, 1013, !throwException);
-        Mono<MockDataServiceResponse> five = submitRESTRequest(webClient, 1014, throwException);
-        Mono<MockDataServiceResponse> six = submitRESTRequest(webClient, 1015, throwException);
+        Mono<MockDataServiceResponse> five = submitRESTRequest(webClient, 1014, !throwException);
+        Mono<MockDataServiceResponse> six = submitRESTRequest(webClient, 1015, !throwException);
         Mono<MockDataServiceResponse> seven = submitRESTRequest(webClient, 1016, throwException);
         Mono<MockDataServiceResponse> eight = submitRESTRequest(webClient, 1017, throwException);
         Mono<MockDataServiceResponse> nine = submitRESTRequest(webClient, 1018, throwException);
@@ -165,11 +165,11 @@ class DecoratedControllerTest {
             }
             List<MockDataServiceResponse> circuitBreakerFailures = successfulMonos.stream()
                     .filter(response -> response.getHostedRegion()
-                            .equals("CallNotPermittedException thrown: {CircuitBreaker 'circuit-breaker' is OPEN and does not permit further calls}"))
+                            .equals("CircuitBreaker 'circuit-breaker' is OPEN and does not permit further calls"))
                     .collect(Collectors.toList());
             List<MockDataServiceResponse> regularFailures = successfulMonos.stream()
                     .filter(response -> response.getHostedRegion()
-                            .equals("Something went wrong!!"))
+                            .contains("TemporaryServiceOutageException thrown from service"))
                     .collect(Collectors.toList());
             List<MockDataServiceResponse> successfulResponses = successfulMonos.stream()
                     .filter(response -> response.getData() != null)
@@ -257,8 +257,8 @@ class DecoratedControllerTest {
             List<MockDataServiceResponse> successfulResponses = successfulMonos.stream()
                     .filter(response -> response.getData() != null)
                     .collect(Collectors.toList());
-            assertEquals(timeLimiterFailures.size(), 4);
-            assertEquals(successfulResponses.size(), 4);
+            assertEquals(timeLimiterFailures.size(), 3);
+            assertEquals(successfulResponses.size(), 5);
 
         } catch (Exception e) {
             fail();

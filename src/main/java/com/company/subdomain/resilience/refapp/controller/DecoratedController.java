@@ -1,8 +1,8 @@
 package com.company.subdomain.resilience.refapp.controller;
 
-import com.company.subdomain.resilience.refapp.decorators.DecoratedSupplier;
 import com.company.subdomain.resilience.refapp.exception.ChaosEngineeringRuntimeException;
 import com.company.subdomain.resilience.refapp.model.MockDataServiceResponse;
+import com.company.subdomain.resilience.refapp.service.DecoratedSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,7 +14,7 @@ import java.util.concurrent.ExecutionException;
 
 @RestController
 @RequestMapping("decorated-services")
-public class DecoratedController<T, R> {
+public class DecoratedController {
     private static Logger LOGGER = LoggerFactory.getLogger(DecoratedController.class);
     private final DecoratedSupplier decoratedSupplier;
 
@@ -55,33 +55,14 @@ public class DecoratedController<T, R> {
         return decoratedSupplier.callTimeLimiterDecoratedService(throwException);
     }
 
-    /**
-     * @return
-     * @throws RuntimeException
-     */
+
     @GetMapping("/simpleSemaphoreBulkhead")
-    public MockDataServiceResponse offeringsById(@RequestParam String offerId, @RequestParam Boolean throwException) throws ChaosEngineeringRuntimeException {
-        try {
-            return decoratedSupplier.callSemaphoreBulkheadDecoratedService(offerId, throwException);
-        } catch (ChaosEngineeringRuntimeException e) {
-            LOGGER.error("Caught error in controller {}", e.getMessage());
-            throw e;
-        }
+    public MockDataServiceResponse offeringsById(@RequestParam String offerId, @RequestParam Boolean throwException) {
+        return decoratedSupplier.callSemaphoreBulkheadDecoratedService(offerId, throwException);
     }
 
-
-    /**
-     * @return
-     * @throws RuntimeException
-     */
     @GetMapping("/degradingService")
-    public MockDataServiceResponse degradingOfferings(@RequestParam Boolean throwException) throws ChaosEngineeringRuntimeException,
-            InterruptedException, ExecutionException {
-        try {
-            return decoratedSupplier.callDegradingOfferingsUsingSemaphoreBulkheadDecoratedService(throwException);
-        } catch (ChaosEngineeringRuntimeException e) {
-            LOGGER.error("Caught error in controller {}", e.getMessage());
-            throw e;
-        }
+    public MockDataServiceResponse degradingOfferings(@RequestParam Boolean throwException) throws InterruptedException, ExecutionException {
+        return decoratedSupplier.callDegradingOfferingsUsingSemaphoreBulkheadDecoratedService(throwException);
     }
 }

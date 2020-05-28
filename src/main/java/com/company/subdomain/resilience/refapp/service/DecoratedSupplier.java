@@ -1,9 +1,8 @@
-package com.company.subdomain.resilience.refapp.decorators;
+package com.company.subdomain.resilience.refapp.service;
 
 import com.company.subdomain.resilience.refapp.exception.ChaosEngineeringRuntimeException;
 import com.company.subdomain.resilience.refapp.exception.TemporaryServiceOutageException;
 import com.company.subdomain.resilience.refapp.model.MockDataServiceResponse;
-import com.company.subdomain.resilience.refapp.service.OfferingsDataService;
 import io.github.resilience4j.bulkhead.Bulkhead;
 import io.github.resilience4j.bulkhead.BulkheadFullException;
 import io.github.resilience4j.bulkhead.ThreadPoolBulkhead;
@@ -23,7 +22,10 @@ import lombok.Lombok;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
 
+import java.net.ConnectException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -46,8 +48,30 @@ public class DecoratedSupplier {
 
     public MockDataServiceResponse callRetryDecoratedService(boolean throwException) {
         handlePublishedEvents(patternsFactory.retry);
-        Supplier<MockDataServiceResponse> mockDataServiceResponseSupplier = () -> getMockOfferings(throwException);
+        Supplier<MockDataServiceResponse> mockDataServiceResponseSupplier = () -> getMockOfferingsWithRetry(throwException);
         return Retry.decorateSupplier(patternsFactory.retry, mockDataServiceResponseSupplier)
+                .get();
+    }
+
+    public MockDataServiceResponse callRetryDecoratedServiceWithFallBack(boolean throwException) {
+        handlePublishedEvents(patternsFactory.retry);
+        Supplier<MockDataServiceResponse> mockDataServiceResponseSupplier = () -> getMockOfferingsWithRetry(throwException);
+        return Decorators.ofSupplier(mockDataServiceResponseSupplier)
+                .withRetry(patternsFactory.retry)
+                .withFallback(Arrays.asList(ConnectException.class, ResourceAccessException.class),
+                        (e) -> fallbackResponse(String.format("Exception thrown: {%s}", e.getMessage())))
+                .get();
+    }
+
+    private MockDataServiceResponse getMockOfferingsWithRetry(boolean throwException) {
+        return Try.of(() -> offeringsDataService.getMockOfferingsForRetry(throwException))
+                .recover(throwable -> {
+                    if (throwable instanceof TemporaryServiceOutageException) {
+                        throw new ChaosEngineeringRuntimeException(throwable.getMessage());
+                    } else {
+                        throw Lombok.sneakyThrow(throwable);
+                    }
+                })
                 .get();
     }
 
@@ -63,14 +87,11 @@ public class DecoratedSupplier {
                 .get();
     }
 
-    public MockDataServiceResponse callCircuitBreakerDecoratedService(boolean throwException) throws ExecutionException, InterruptedException, ChaosEngineeringRuntimeException {
+    public MockDataServiceResponse callCircuitBreakerDecoratedService(boolean throwException) {
         handlePublishedEvents(patternsFactory.circuitBreaker);
-        Supplier<MockDataServiceResponse> mockDataServiceResponseSupplier = (() ->
-                offeringsDataService.getMockOfferingsDataFromService(throwException));
+        Supplier<MockDataServiceResponse> mockDataServiceResponseSupplier = () -> getMockOfferings(throwException);
         Supplier<MockDataServiceResponse> decoratedSupplier = Decorators.ofSupplier(mockDataServiceResponseSupplier)
                 .withCircuitBreaker(patternsFactory.circuitBreaker)
-                .withFallback(Collections.singletonList(CallNotPermittedException.class),
-                        (e) -> fallbackResponse(String.format("CallNotPermittedException thrown: {%s}", e.getMessage())))
                 .decorate();
         return Try.ofSupplier(decoratedSupplier)
                 .onFailure(throwable -> LOGGER.error("Request failed due to {}", throwable.getMessage()))
@@ -123,8 +144,7 @@ public class DecoratedSupplier {
     public MockDataServiceResponse callBulkheadDecoratedService(boolean throwException) throws Throwable {
         LOGGER.info(" {} callBulkheadDecoratedService ", Thread.currentThread().getName());
         handlePublishedEvents(patternsFactory.bulkhead);
-        Supplier<MockDataServiceResponse> mockDataServiceResponseSupplier = (() ->
-                offeringsDataService.getMockOfferingsDataFromService(throwException));
+        Supplier<MockDataServiceResponse> mockDataServiceResponseSupplier = () -> getMockOfferings(throwException);
         Supplier<MockDataServiceResponse> decoratedSupplier = Decorators.ofSupplier(mockDataServiceResponseSupplier)
                 .withBulkhead(patternsFactory.bulkhead)
                 .withFallback(Collections.singletonList(BulkheadFullException.class),

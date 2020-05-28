@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 
 @Service
 @Component(value = "offeringsDataService")
-public class OfferingsDataServiceImpl implements OfferingsDataService {
+class OfferingsDataServiceImpl implements OfferingsDataService {
     private static final int[] FIBONACCI = new int[]{1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233};
     private static Logger LOGGER = LoggerFactory.getLogger(OfferingsDataServiceImpl.class);
     private final ChaosEngineeringDataRepository chaosEngineeringDataRepository;
@@ -29,9 +29,23 @@ public class OfferingsDataServiceImpl implements OfferingsDataService {
     }
 
     @Override
-    public MockDataServiceResponse getMockOfferings(Boolean throwException) throws TemporaryServiceOutageException {
+    public MockDataServiceResponse getMockOfferingsForRetry(Boolean throwException) throws TemporaryServiceOutageException {
         LOGGER.info("Invoking OfferingsDataServiceImpl throwException {} count {}", throwException, atomicInteger.incrementAndGet());
         if (throwException && atomicInteger.get() < 2) {
+            throw new TemporaryServiceOutageException("TemporaryServiceOutageException thrown from service count " + atomicInteger.get());
+        }
+        String hostedRegion = "";
+        List<Offering> mockOffers = chaosEngineeringDataRepository.getSampleDataFromRepository();
+        MockDataServiceResponse response = new MockDataServiceResponse();
+        response.setData(mockOffers);
+        response.setHostedRegion(hostedRegion);
+        return response;
+    }
+
+    @Override
+    public MockDataServiceResponse getMockOfferings(Boolean throwException) throws TemporaryServiceOutageException {
+        LOGGER.info("Invoking OfferingsDataServiceImpl throwException {} count {}", throwException, atomicInteger.incrementAndGet());
+        if (throwException) {
             throw new TemporaryServiceOutageException("TemporaryServiceOutageException thrown from service count " + atomicInteger.get());
         }
         String hostedRegion = "";

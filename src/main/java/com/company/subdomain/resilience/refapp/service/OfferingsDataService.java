@@ -4,7 +4,9 @@ import com.company.subdomain.resilience.refapp.exception.ChaosEngineeringRuntime
 import com.company.subdomain.resilience.refapp.exception.TemporaryServiceOutageException;
 import com.company.subdomain.resilience.refapp.model.MockDataServiceResponse;
 
-public interface OfferingsDataService {
+interface OfferingsDataService {
+    MockDataServiceResponse getMockOfferingsForRetry(Boolean throwException) throws TemporaryServiceOutageException;
+
     MockDataServiceResponse getMockOfferings(Boolean throwException) throws TemporaryServiceOutageException;
 
     MockDataServiceResponse getMockOfferingsDataFromService(boolean throwException) throws ChaosEngineeringRuntimeException;

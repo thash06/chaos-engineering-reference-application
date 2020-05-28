@@ -1,4 +1,4 @@
-package com.company.subdomain.resilience.refapp.decorators;
+package com.company.subdomain.resilience.refapp.service;
 
 import com.company.subdomain.resilience.refapp.exception.ChaosEngineeringRuntimeException;
 import com.company.subdomain.resilience.refapp.exception.TemporaryServiceOutageException;
@@ -23,18 +23,17 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.concurrent.TimeoutException;
 
 @Component
-public class PatternsFactory {
+class PatternsFactory {
     private static Logger LOGGER = LoggerFactory.getLogger(PatternsFactory.class);
 
-    public static final String TIME_LIMITER = "time-limiter";
-    public static final String SEMAPHORE_BULKHEAD = "semaphore-bulkhead";
-    public static final String THREAD_POOL_BULKHEAD = "thread-pool-bulkhead";
-    public static final String RETRY_SERVICE = "retry-for-bulkhead";
-    public static final String CIRCUIT_BREAKER = "circuit-breaker";
-    public static final String RATE_LIMITER = "rate-limiter";
+    static final String TIME_LIMITER = "time-limiter";
+    static final String SEMAPHORE_BULKHEAD = "semaphore-bulkhead";
+    static final String THREAD_POOL_BULKHEAD = "thread-pool-bulkhead";
+    static final String RETRY_SERVICE = "retry-for-bulkhead";
+    static final String CIRCUIT_BREAKER = "circuit-breaker";
+    static final String RATE_LIMITER = "rate-limiter";
 
     final ThreadPoolBulkhead threadPoolBulkhead;
     final Bulkhead bulkhead;
@@ -110,7 +109,7 @@ public class PatternsFactory {
                 .waitDurationInOpenState(Duration.ofMillis(waitDurationInOpenState))
                 .permittedNumberOfCallsInHalfOpenState(permittedNumberOfCallsInHalfOpenState)
                 .slidingWindowSize(slidingWindowSize)
-                .recordExceptions(ChaosEngineeringRuntimeException.class, TimeoutException.class, BulkheadFullException.class)
+                .recordExceptions(ChaosEngineeringRuntimeException.class, TemporaryServiceOutageException.class)
                 .ignoreExceptions(IOException.class)
                 .build();
         CircuitBreakerRegistry circuitBreakerRegistry = CircuitBreakerRegistry.of(circuitBreakerConfig);
@@ -122,7 +121,6 @@ public class PatternsFactory {
                 .limitRefreshPeriod(Duration.ofMillis(windowInMilliseconds))
                 .limitForPeriod(limitForPeriod)
                 .timeoutDuration(Duration.ofMillis(waitTimeForThread))
-
                 .build();
         RateLimiterRegistry rateLimiterRegistry = RateLimiterRegistry.of(rateLimiterConfig);
         return rateLimiterRegistry.rateLimiter(RATE_LIMITER);
