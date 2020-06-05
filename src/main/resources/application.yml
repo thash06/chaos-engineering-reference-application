@@ -63,7 +63,7 @@ patterns.config:
 #        - java.util.concurrent.TimeoutException
 #        - java.io.IOException
 #      ignoreExceptions:
-#        - com.fidelity.fbt.chaos.refapp.exception.ChaosEngineeringException
+#        - com.company.subdomain.resilience.refapp.exception.ChaosEngineeringException
 #    shared:
 #      slidingWindowSize: 100
 #      permittedNumberOfCallsInHalfOpenState: 30
@@ -71,7 +71,7 @@ patterns.config:
 #      failureRateThreshold: 50
 #      eventConsumerBufferSize: 10
 #      ignoreExceptions:
-#        - com.fidelity.fbt.chaos.refapp.exception.ChaosEngineeringException
+#        - com.company.subdomain.resilience.refapp.exception.ChaosEngineeringException
 #  instances:
 #    data-service:
 #      registerHealthIndicator: true
@@ -81,7 +81,6 @@ patterns.config:
 #      waitDurationInOpenState: 5s
 #      failureRateThreshold: 50
 #      eventConsumerBufferSize: 10
-#      #recordFailurePredicate: io.github.robwin.exception.RecordFailurePredicate
 #resilience4j.retry:
 #  configs:
 #    default:
@@ -92,7 +91,7 @@ patterns.config:
 #        - java.util.concurrent.TimeoutException
 #        - java.io.IOException
 #      ignoreExceptions:
-#        - com.fidelity.fbt.chaos.refapp.exception.ChaosEngineeringException
+#        - com.company.subdomain.resilience.refapp.exception.ChaosEngineeringException
 #  instances:
 #    data-service:
 #      baseConfig: default

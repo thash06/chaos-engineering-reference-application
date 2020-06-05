@@ -24,11 +24,11 @@
         <version>2.2.2.RELEASE</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
-    <groupId>com.fidelity.fbt.chaos.refapp</groupId>
+    <groupId>com.company.subdomain.resilience.refapp</groupId>
     <artifactId>chaos-engineering-reference-application</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>chaos-engineering-reference-application</name>
-    <description>Reference Application for Chaos Engineering ALFI</description>
+    <description>Reference Application for Resilience</description>
 
 
     <properties>

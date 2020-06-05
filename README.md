@@ -1,24 +1,24 @@
-# Resiliency patterns
+# Resilience patterns
 This project consists of implementations of a few patterns that allow services achieve fault tolerance 
-(i.e resiliency) in the face of events such as service failure, too many concurrent requests etc. 
+(i.e resilience) in the face of events such as service failure, too many concurrent requests etc. 
 Failures cannot be prevented, but the goal should be to build solutions that fail fast and gracefully rather than 
 cascading and bringing down the whole system.
 
-Netflix Hystrix a latency and fault tolerance library was one of the pioneer's of resiliency engineering but as Netflix 
-has moved towards more adaptive solutions this library has been in maintenance mode since 2018 and Resiliency4j has been 
+Netflix Hystrix a latency and fault tolerance library was one of the pioneer's of resilience engineering but as Netflix 
+has moved towards more adaptive solutions this library has been in maintenance mode since 2018 and Resilience4j has been 
 filing the void.
 
 Resilience4j is a framework that provides higher-order functions (decorators) and/or annotations to enhance any method call, 
 functional interface, lambda expression or method reference with a Circuit Breaker, Rate Limiter, Retry or Bulkhead. 
-We can choose to use one or more of these "Decorators" to meet our resiliency objective.
+We can choose to use one or more of these "Decorators" to meet our resilience objective.
 
-## Resiliency Patterns using Resilience4j
+## Resilience Patterns using Resilience4j
 To demonstrate resilience4j patterns we have a service `OfferingsDataServiceImpl` which is granted access only through a 
 class (`DecoratedSupplier`) which acts as a proxy protecting the endpoint using a layer of resilience4j decorators.  
  
 - **chaos-engineering-reference-application** - An application where the controller (`DecoratedController`) accesses the service containing 
 the business logic through a layer called `DecoratedSupplier` which decorates the final business service endpoint
-with resiliency pattern implementations.
+with resilience pattern implementations.
 The `DecoratedSupplier` has examples of chaining different patterns together as well as how to use `fallback`.
 
 
