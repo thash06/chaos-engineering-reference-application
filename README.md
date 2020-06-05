@@ -142,7 +142,7 @@ takes longer than the `timeoutDuration()` the call is terminated and an exceptio
 One important caveat about the `cancelRunningFuture()` is that the value `true` only works when TimeLimiter is used to decorate 
 a method which returns a Future. 
 For a better understanding of how this property works differently in `Future` and `CompletableFuture` refer to 
-the unit test `com.fidelity.fbt.chaos.refapp.utilTimeLimiterTest`. Run this test by switching the `cancelRunningFuture()`
+the unit test `com.company.subdomain.resilience.refapp.util.TimeLimiterTest`. Run this test by switching the `cancelRunningFuture()`
 to `false` and see how the output changes.
 To gain a better understanding of why `CompletableFuture` cannot be interrupted refer to this fantastic tutorial.
 https://www.nurkiewicz.com/2015/03/completablefuture-cant-be-interrupted.html?m=1
